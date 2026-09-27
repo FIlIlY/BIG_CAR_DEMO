@@ -48,8 +48,8 @@ bool qi3_frame_is_valid(const Qi3Frame *frame);
 /*
  * 通过 STM32 HAL UART 发送已经生成的 Qi-3-G 信息帧。
  *
- * huart 必须对应实际接到 Qi-3-G 控制器的串口（例如 &huart1）。
- * STM32F1 UART 的波特率、数据位、停止位等参数由 CubeMX/usart.c 配置。
+ * huart 必须对应实际接到 Qi-3-G 控制器的串口；当前工程使用 &huart3（USART3）。
+ * STM32F4 UART 的波特率、数据位、停止位等参数由 CubeMX/usart.c 配置。
  */
 HAL_StatusTypeDef qi3_send_frame(UART_HandleTypeDef *huart,
                                  const Qi3Frame *frame,

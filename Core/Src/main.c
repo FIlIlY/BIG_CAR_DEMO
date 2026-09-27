@@ -2,7 +2,7 @@
 /**
   ******************************************************************************
   * @file           : main.c
-  * @brief          : 主程序入口与 USART2 DMA 收发测试
+  * @brief          : 主程序入口与上位机指令控制
   ******************************************************************************
   * @attention
   *
@@ -97,7 +97,7 @@ typedef enum
   HOST_COMMAND_UART_ERROR
 } HostCommandResult;
 
-/* 在主循环中解析并执行一条上位机命令，然后把 Qi-3-G 帧从 USART1 发出。 */
+/* 在主循环中解析并执行一条上位机命令，然后把 Qi-3-G 帧从 USART3 发出。 */
 static HostCommandResult execute_host_command(char *command);
 /* 通过 USART2 返回简短的 ASCII 执行结果。 */
 static void send_host_response(const char *response);
@@ -105,7 +105,7 @@ static void send_host_response(const char *response);
 /* USER CODE END 0 */
 
 /**
-  * @brief  主程序入口：初始化外设，接收上位机命令并通过 USART1 控制 Qi-3-G 底盘。
+  * @brief  主程序入口：初始化外设，接收上位机命令并通过 USART3 控制 Qi-3-G 底盘。
   * @retval int  按嵌入式程序约定不会返回。
   */
 int main(void)
@@ -131,14 +131,15 @@ int main(void)
 
   /* USER CODE END SysInit */
 
-  /* 初始化 GPIO、DMA 和三个串口：USART2 接上位机，USART1 向 Qi-3-G 底盘控制器发命令。 */
+  /* 初始化 GPIO、DMA，以及当前控制链路使用的两个串口。 */
   MX_GPIO_Init();
   MX_DMA_Init();
-  MX_USART1_UART_Init();
+  /* USART2 接收上位机命令，并通过 TX DMA 返回执行结果。 */
   /* USART2 配置为 115200 波特率、8 数据位、无校验、1 个停止位；
    * PA2 为 TX、PA3 为 RX，收发分别使用 DMA1 Stream6 和 Stream5。
    */
   MX_USART2_UART_Init();
+  /* USART3 配置为 115200、8N1；PB10 为 TX、PB11 为 RX。 */
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
 
@@ -147,7 +148,7 @@ int main(void)
    * 接收回调会先拼接字节，直到收到行结束符才把完整命令交给主循环。
    * 支持 MOTOR_ON、MOTOR_OFF、STOP、PARK、UNPARK、CALIBRATE；
    * 运动命令为 MOVE_MM_S 速度 转向角速度 原地速度，或 MOVE_RPM 转速 转向角速度 原地转速。
-   * 参数之间可用空格或逗号分隔；STM32 返回 OK SENT 表示帧已从 USART1 发出。
+   * 参数之间可用空格或逗号分隔；STM32 返回 OK SENT 表示帧已从 USART3 发出。
    */
   if (HAL_UARTEx_ReceiveToIdle_DMA(&huart2,
                                    usart2_host_rx_buffer,
@@ -210,7 +211,7 @@ int main(void)
           break;
         case HOST_COMMAND_UART_ERROR:
         default:
-          send_host_response("ERR USART1_TX\r\n");
+          send_host_response("ERR USART3_TX\r\n");
           break;
       }
     }
@@ -442,7 +443,7 @@ static HostCommandResult parse_int16_argument(char *text, int16_t *value)
   return HOST_COMMAND_OK;
 }
 
-/* 解析一条上位机文本命令并经 USART1 发送对应的 Qi-3-G 二进制控制帧。 */
+/* 解析一条上位机文本命令并经 USART3 发送对应的 Qi-3-G 二进制控制帧。 */
 static HostCommandResult execute_host_command(char *command)
 {
   char *token;
@@ -547,8 +548,8 @@ static HostCommandResult execute_host_command(char *command)
     return HOST_COMMAND_FORMAT_ERROR;
   }
 
-  /* OK SENT 表示 STM32 已把帧发出 USART1，不代表下游控制器已执行该指令。 */
-  if (qi3_send_frame(&huart1, &frame, 100U) != HAL_OK)
+  /* OK SENT 表示 STM32 已把帧发出 USART3，不代表下游控制器已执行该指令。 */
+  if (qi3_send_frame(&huart3, &frame, 100U) != HAL_OK)
   {
     return HOST_COMMAND_UART_ERROR;
   }
